@@ -26,8 +26,8 @@ const EmergencyHospitalMap = () => {
 
     const showPosition = (position) => {
         //const { latitude, longitude } = position.coords;
-        const latitude = 37.65146111; // 테스트용 위도
-        const longitude = 127.0583889; // 테스트용 경도
+        const latitude = 37.64335827; // 테스트용 위도
+        const longitude = 127.1088514; // 테스트용 경도
         const location = new naver.maps.LatLng(latitude, longitude);
 
         if (!mapRef.current) {
@@ -85,30 +85,21 @@ const EmergencyHospitalMap = () => {
         }
     };
     
-    
-
-    const fetchHospitalData = async (latitude, longitude) => {
+    const fetchHospitalData = async () => {
         setLoading(true);
-
-        const baseApiUrl = filter
-            ? "http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEmrrmRltmUsefulSckbdInfoInqire"
-            : "http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytLcinfoInqire";
-
-        const queryParams = filter
-            ? `&STAGE1=서울특별시&STAGE2=${stage2}&${filterMapping[filter]}=Y`
-            : `&WGS84_LON=${longitude}&WGS84_LAT=${latitude}`;
-
-        const apiUrl = `${baseApiUrl}?serviceKey=ABFtCvcDAGqJVnVeX9v0ajxRpRfRq5Yyb%2B8wPnZ0zYWKNfy8VVGudOCd8QYzvRYW%2BRuwv5mEZ9GixK6Cep6nXw%3D%3D&pageNo=1&numOfRows=528${queryParams}`;
-
+    
+        const apiUrl = "http://localhost:3001/api/hospitals"; // 모든 병원 데이터를 가져오는 URL
+    
         try {
             const response = await fetch(apiUrl);
-            const data = await response.text();
-
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(data, "text/xml");
-            const hospitals = xmlDoc.getElementsByTagName("item");
-
-            displayHospitals(hospitals);
+            const hospitals = await response.json(); // SQL에서 가져온 병원 데이터
+    
+            // 필터가 적용되면 해당 조건에 맞는 병원만 필터링
+            const filteredHospitals = filter
+                ? hospitals.filter((hospital) => hospital[filterMapping[filter]] === "Y")
+                : hospitals; // 필터가 없으면 모든 병원 표시
+    
+            displayHospitals(filteredHospitals); // 필터링된 병원 데이터를 지도에 표시
         } catch (error) {
             console.error("병원 데이터를 가져오는 데 실패했습니다:", error);
             alert("병원 데이터를 가져오는 데 실패했습니다.");
@@ -120,29 +111,44 @@ const EmergencyHospitalMap = () => {
     const displayHospitals = (hospitals) => {
         markers.current.forEach((marker) => marker.setMap(null));
         markers.current = [];
-
-        Array.from(hospitals).forEach((hospital) => {
-            const latitudeNode = hospital.getElementsByTagName("latitude")[0];
-            const longitudeNode = hospital.getElementsByTagName("longitude")[0];
-            const nameNode = hospital.getElementsByTagName("dutyName")[0];
-
-            if (!latitudeNode || !longitudeNode || !nameNode) return;
-
-            const lat = parseFloat(latitudeNode.textContent);
-            const lon = parseFloat(longitudeNode.textContent);
-            const name = nameNode.textContent;
-
+    
+        hospitals.forEach((hospital) => {
+            const { latitude, longitude, hospital_name, address } = hospital;
+    
             const marker = new naver.maps.Marker({
-                position: new naver.maps.LatLng(lat, lon),
+                position: new naver.maps.LatLng(latitude, longitude),
                 map: mapRef.current,
-                title: name,
+                title: hospital_name,
             });
-
+    
             markers.current.push(marker);
-
-            naver.maps.Event.addListener(marker, "click", () => alert(name));
+    
+            naver.maps.Event.addListener(marker, "click", () => alert(`병원명: ${hospital_name}\n주소: ${address}`));
         });
     };
+    
+    // DB에서 가져온 병원 데이터를 표시하는 함수
+    const displayHospitalsFromDb = (hospitals) => {
+        markers.current.forEach((marker) => marker.setMap(null));
+        markers.current = [];
+    
+        hospitals.forEach((hospital) => {
+            const { latitude, longitude, hospital_name, address } = hospital;
+    
+            const marker = new naver.maps.Marker({
+                position: new naver.maps.LatLng(latitude, longitude),
+                map: mapRef.current,
+                title: hospital_name,
+            });
+    
+            markers.current.push(marker);
+    
+            naver.maps.Event.addListener(marker, "click", () => alert(`병원명: ${hospital_name}\n주소: ${address}`));
+        });
+    };
+    
+    
+    
 
     const showError = (error) => {
         const errorMessage = {
@@ -164,18 +170,18 @@ const EmergencyHospitalMap = () => {
         <div>
             <h1>응급의료기관 정보</h1>
             <div style={{ marginBottom: "10px" }}>
-                <button onClick={() => setFilter("CT")} disabled={loading}>
-                    CT
-                </button>
-                <button onClick={() => setFilter("MRI")} disabled={loading}>
-                    MRI
-                </button>
-                <button onClick={() => setFilter("VENTI")} disabled={loading}>
-                    소아
-                </button>
-                <button onClick={() => setFilter("INCUBATOR")} disabled={loading}>
-                    인큐베이터
-                </button>
+            <button onClick={() => setFilter("CT")} disabled={loading}>
+                CT
+            </button>
+            <button onClick={() => setFilter("MRI")} disabled={loading}>
+                MRI
+            </button>
+            <button onClick={() => setFilter("VENTI")} disabled={loading}>
+                소아
+            </button>
+            <button onClick={() => setFilter("INCUBATOR")} disabled={loading}>
+                인큐베이터
+            </button>
             </div>
             <div id="map" style={{ width: "100%", height: "500px" }}></div>
         </div>
